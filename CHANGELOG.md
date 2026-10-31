@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.0 — 2026-10-30
+
+- Corrigida a captura dos valores originais com referências fortes e snapshots que preservam o valor anterior de cada propriedade; restauração em lotes.
+- Ajustado o fluxo de restauração ao alternar perfis, redefinir ou fechar o painel.
+- Varredura do mapa limitada por fatias curtas de tempo, com pulo de subárvores protegidas e remoção da varredura duplicada da câmera.
+- Corrigido o controle de geração da varredura no módulo Optimizer para permitir Workspace e Lighting em paralelo sem cancelamento indevido.
+- Monitor FPS usa Heartbeat e continua sendo uma estimativa local.
+- Painel principal e botão flutuante podem ser arrastados com mouse ou toque.
+- Não há benchmark prático em aparelho/experiência nesta atualização; o efeito real no FPS ainda precisa ser medido no mesmo cenário.
+
 ## v0.3.0 — 2026-10-30
 
 - Adicionados os modos Ultra, Equilibrado e Leve com comportamentos distintos.
