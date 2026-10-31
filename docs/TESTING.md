@@ -23,6 +23,7 @@ Em uma experiência de teste na qual scripts locais sejam permitidos:
 - [ ] Confirmar que o controle de colisão só afeta peças ambientais elegíveis.
 - [ ] Adicionar peças/efeitos durante cada modo e confirmar a detecção automática.
 - [ ] Alternar repetidamente entre os modos e verificar a restauração dos valores originais.
+- [ ] Testar a restauração de Decal.Transparency, Texture.Transparency e dos mapas ColorMap/NormalMap/RoughnessMap/MetalnessMap de SurfaceAppearance.
 - [ ] Desativar colisão e verificar a recuperação de CanCollide.
 - [ ] Fechar o painel e confirmar restauração e desconexão dos eventos.
 - [ ] Executar novamente o script após fechar e verificar ausência de painel/conexões duplicados.
@@ -31,6 +32,7 @@ Em uma experiência de teste na qual scripts locais sejam permitidos:
 
 - [ ] Comparar a mesma cena, ângulo de câmera e qualidade gráfica antes/depois de cada modo.
 - [ ] Repetir medições e comparar mediana de FPS ou tempo de quadro.
+- [ ] Comparar também durante a varredura inicial e depois que ela termina, para separar custo temporário de custo persistente.
 - [ ] Separar FPS, memória, rede e desempenho do servidor; são métricas diferentes.
 - [ ] Registrar modelo do aparelho, sistema operacional, versão do cliente, versão do executor, experiência e cena.
 - [ ] Não afirmar aumento garantido de FPS ou redução de RAM com base em uma única observação.
