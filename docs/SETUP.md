@@ -18,8 +18,9 @@ O carregador requer que o ambiente ofereça loadstring e game:HttpGet. Como alte
 4. **Colisão ambiental:** alterna alterações locais de colisão em peças ancoradas elegíveis. Vem desligado por padrão e não garante atravessar obstáculos controlados pelo servidor.
 5. **Monitor FPS:** liga/desliga a estimativa local.
 6. **Restaurar original:** reverte as propriedades registradas pelo script.
-7. **Minimizar:** recolhe o painel sem encerrar o otimizador.
-8. **Fechar (×):** restaura configurações e encerra o painel/conexões.
+7. **Mover interface:** arraste o cabeçalho para reposicionar o painel; quando minimizado, arraste o botão flutuante `UB`.
+8. **Minimizar:** recolhe o painel sem encerrar o otimizador.
+9. **Fechar (×):** restaura configurações e encerra o painel/conexões.
 
 ## Notas
 
@@ -27,4 +28,5 @@ O carregador requer que o ambiente ofereça loadstring e game:HttpGet. Como alte
 - Personagens, modelos com Humanoid, ferramentas e objetos com nomes associados à jogabilidade são protegidos quando reconhecidos pela classificação.
 - A classificação é heurística e pode variar de acordo com a hierarquia e a nomenclatura de cada experiência.
 - Use a restauração antes de sair. Fechar o painel também restaura as alterações.
+- A varredura inicial é processada em pequenas fatias para reduzir picos de CPU; mapas muito grandes ainda podem levar algum tempo para serem processados.
 - Não há garantia de compatibilidade com toda versão de executor ou cliente.
