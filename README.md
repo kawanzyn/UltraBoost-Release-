@@ -1,41 +1,52 @@
 # UltraBoost 🚀
 
-**Otimização visual local para clientes de jogos Roblox.** O UltraBoost oferece perfis reversíveis que tentam reduzir parte do trabalho de renderização em cenas nas quais efeitos e sombras sejam um gargalo.
+UltraBoost é um otimizador visual executado no cliente, com três modos reversíveis para reduzir efeitos e simplificar a apresentação do cenário em dispositivos com recursos limitados.
 
-> **Estado: experimental — v0.2.0.** Ainda não há validação confirmada em aparelhos reais nem compatibilidade verificada com builds específicas do Delta. Os resultados variam de acordo com jogo, cena, aparelho e gargalo.
+> O ganho depende do jogo, da cena, do aparelho e do gargalo real. O UltraBoost não garante FPS específico, redução de RAM, menor ping ou melhoria do desempenho do servidor.
 
-## Carregador
+## Versões
 
-Copie esta linha para um ambiente cliente compatível:
+- **dist/UltraBoost.lua** — arquivo standalone com interface adaptada para toque.
+- **src/** — implementação modular para experiências próprias ou ambientes nos quais você tenha autorização para editar.
 
-```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/kawanzyn/UltraBoost-Release-/main/UltraBoost.lua"))()
-```
+## Modos do arquivo standalone
 
-O carregador depende de o executor oferecer `loadstring` e `game:HttpGet`. Essas funções pertencem ao ambiente que executa o carregador; o arquivo principal `UltraBoost.lua` usa APIs padrão do cliente e não depende de funções internas específicas de executores.
+- **Ultra:** oculta localmente peças ambientais classificadas como cenário, simplifica superfícies, reduz sombras e desativa efeitos selecionados. O chão permanece visível e sua colisão não é alterada pelo modo.
+- **Equilibrado:** aplica branco às peças ambientais e às cores de material do Terrain, simplifica materiais e reduz efeitos selecionados.
+- **Leve:** aplica SmoothPlastic e remove mapas/texturas compatíveis, preservando as cores das peças sempre que possível.
+- **Colisão ambiental:** controle separado, desligado por padrão. Atua somente em peças ambientais ancoradas que passem pelos critérios de proteção. O chão, personagens, ferramentas e objetos com nomes associados a elementos de gameplay são excluídos.
+- **Monitor FPS:** estimativa local atualizada em intervalos aproximados; pode ser desligada na interface.
+- **Restaurar original:** recupera as propriedades capturadas antes das alterações.
+- **Fechar (×):** restaura as propriedades e encerra as conexões do painel.
 
-Arquivo direto: [UltraBoost.lua](UltraBoost.lua)
+Os critérios de identificação do cenário são heurísticos. Experiências com nomes ou hierarquias incomuns podem exigir ajustes; objetos protegidos por classificação conservadora podem não ser otimizados.
 
-## Controles
+## Instalação
 
-- **Ultra:** desativa localmente efeitos visuais selecionados e sombras.
-- **Equilibrado:** restaura a maioria das propriedades visuais monitoradas e mantém pós-processamento desativado.
-- **Texturas/decals:** opção manual para ocultar decalques e texturas; vem desligada porque pode esconder sinais e informações úteis.
-- **Restaurar original:** recupera os valores originais das propriedades modificadas.
-- **×:** restaura as configurações e fecha o painel.
+Arquivo público: https://github.com/kawanzyn/UltraBoost-Release-/blob/main/UltraBoost.lua
 
-## Instalação e testes
+Carregador para ambientes que ofereçam loadstring e game:HttpGet:
 
-Leia [Setup](docs/SETUP.md), [Compatibilidade](docs/COMPATIBILITY.md) e [Checklist de testes](docs/TESTING.md).
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/kawanzyn/UltraBoost-Release-/main/UltraBoost.lua"))()
+
+O carregador depende de recursos do ambiente de execução. O arquivo principal evita funções específicas de executor e utiliza APIs padrão do cliente. Isso, por si só, não comprova compatibilidade com todas as versões do Delta ou dispositivos.
+
+Veja docs/SETUP.md, docs/COMPATIBILITY.md, docs/TESTING.md e docs/PUBLISHING.md.
 
 ## Limitações importantes
 
-- Não promete FPS específico, redução garantida de RAM, menor ping ou melhoria de desempenho do servidor.
-- Alterar a transparência de uma textura não significa descarregar seu asset da memória.
-- Atua apenas no cliente local; não altera estado do servidor, scripts de gameplay ou outros jogadores.
-- Não remove instâncias, não chama eventos remotos e não tenta contornar anti-cheat.
-- Use apenas em ambientes nos quais scripts locais sejam permitidos.
+- As alterações são locais; não alteram o estado autoritativo do servidor, outros jogadores ou scripts de gameplay.
+- Desativar localmente a colisão de uma peça não garante atravessar uma parede. A simulação e a validação do servidor podem prevalecer.
+- O chão é protegido contra invisibilidade e alterações de colisão pelo UltraBoost.
+- Efeitos e mapas de textura podem conter informação útil. A simplificação visual pode ocultar detalhes importantes.
+- Alterar transparência ou mapas não significa descarregar os assets da memória.
+- O FPS mostrado é uma estimativa de quadros renderizados, não um profiler nem uma medição de RAM.
+- O comportamento visual e o desempenho precisam ser verificados em cada ambiente-alvo; não há garantia universal.
+
+## Segurança e escopo
+
+O projeto não apaga instâncias, não dispara RemoteEvents, não altera estado do servidor e não implementa bypass de anticheat. Use apenas onde scripts locais sejam permitidos.
 
 ## Licença
 
-MIT. Consulte [LICENSE](LICENSE).
+MIT. Consulte LICENSE.
