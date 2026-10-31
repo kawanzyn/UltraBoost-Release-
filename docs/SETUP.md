@@ -1,27 +1,30 @@
-# Instalação
+# Instalação e utilização
 
-## Opção 1 — carregador
+## Arquivo standalone
 
-1. Entre na experiência e abra o ambiente cliente compatível.
-2. Execute o carregador abaixo:
+O arquivo independente é dist/UltraBoost.lua no repositório privado e UltraBoost.lua no repositório público.
 
-```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/kawanzyn/UltraBoost-Release-/main/UltraBoost.lua"))()
-```
+Para um ambiente cliente compatível que permita carregamento remoto, o carregador é:
 
-3. Comece pelo modo **Equilibrado**; compare com **Ultra** na mesma área.
-4. Use **Restaurar original** antes de sair ou feche pelo botão ×.
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/kawanzyn/UltraBoost-Release-/main/UltraBoost.lua"))()
 
-O carregador exige que o executor disponibilize `loadstring` e `game:HttpGet`. A disponibilidade e o comportamento dessas funções variam entre ambientes e versões. Não há garantia de compatibilidade com qualquer build do Delta.
+O carregador requer que o ambiente ofereça loadstring e game:HttpGet. Como alternativa, use o conteúdo completo do arquivo standalone em um contexto cliente compatível.
 
-## Opção 2 — arquivo completo
+## Controles
 
-Abra [UltraBoost.lua](../UltraBoost.lua), copie o conteúdo inteiro e execute-o em um contexto cliente compatível.
+1. **Ultra:** reduz a apresentação do cenário e oculta peças ambientais classificadas. O chão deve continuar visível.
+2. **Equilibrado:** aplica uma aparência branca ao cenário compatível.
+3. **Leve:** simplifica materiais e remove texturas/mapas compatíveis, preservando cores quando possível.
+4. **Colisão ambiental:** alterna alterações locais de colisão em peças ancoradas elegíveis. Vem desligado por padrão e não garante atravessar obstáculos controlados pelo servidor.
+5. **Monitor FPS:** liga/desliga a estimativa local.
+6. **Restaurar original:** reverte as propriedades registradas pelo script.
+7. **Minimizar:** recolhe o painel sem encerrar o otimizador.
+8. **Fechar (×):** restaura configurações e encerra o painel/conexões.
 
-## Recomendações
+## Notas
 
-- Teste primeiro em uma experiência privada/de teste.
-- Compare a mesma cena, ângulo de câmera e qualidade gráfica.
-- Não ative ocultação de texturas quando ela puder esconder placas, pistas ou informações do jogo.
-- Use Restaurar original para reverter as alterações.
-- Não use o projeto para alterar gameplay, interferir em outros jogadores ou contornar sistemas de proteção.
+- O chão é excluído da invisibilidade ambiental e da alteração de colisão.
+- Personagens, modelos com Humanoid, ferramentas e objetos com nomes associados à jogabilidade são protegidos quando reconhecidos pela classificação.
+- A classificação é heurística e pode variar de acordo com a hierarquia e a nomenclatura de cada experiência.
+- Use a restauração antes de sair. Fechar o painel também restaura as alterações.
+- Não há garantia de compatibilidade com toda versão de executor ou cliente.
