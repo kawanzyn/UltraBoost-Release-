@@ -16,7 +16,8 @@ UltraBoost é um otimizador visual executado no cliente, com três modos revers�
 - **Leve:** aplica SmoothPlastic e remove mapas/texturas compatíveis, preservando as cores das peças sempre que possível.
 - **Colisão ambiental:** controle separado, desligado por padrão. Atua somente em peças ambientais ancoradas que passem pelos critérios de proteção. O chão, personagens, ferramentas e objetos com nomes associados a elementos de gameplay são excluídos.
 - **Monitor FPS:** estimativa local atualizada em intervalos aproximados; pode ser desligada na interface.
-- **Restaurar original:** recupera as propriedades capturadas antes das alterações.
+- **Restaurar original:** recupera as propriedades capturadas antes das alterações, incluindo transparência de Decal/Texture e mapas de SurfaceAppearance.
+- **Interface móvel:** arraste o cabeçalho para mover o painel e arraste o botão `UB` quando minimizado.
 - **Fechar (×):** restaura as propriedades e encerra as conexões do painel.
 
 Os critérios de identificação do cenário são heurísticos. Experiências com nomes ou hierarquias incomuns podem exigir ajustes; objetos protegidos por classificação conservadora podem não ser otimizados.
@@ -40,7 +41,8 @@ Veja docs/SETUP.md, docs/COMPATIBILITY.md, docs/TESTING.md e docs/PUBLISHING.md.
 - O chão é protegido contra invisibilidade e alterações de colisão pelo UltraBoost.
 - Efeitos e mapas de textura podem conter informação útil. A simplificação visual pode ocultar detalhes importantes.
 - Alterar transparência ou mapas não significa descarregar os assets da memória.
-- O FPS mostrado é uma estimativa de quadros renderizados, não um profiler nem uma medição de RAM.
+- O FPS mostrado é uma estimativa baseada em Heartbeat, não um profiler nem uma medição de RAM.
+- A varredura inicial é dividida em pequenas fatias de processamento para reduzir picos de tempo de quadro; ainda pode haver custo temporário em mapas muito grandes.
 - O comportamento visual e o desempenho precisam ser verificados em cada ambiente-alvo; não há garantia universal.
 
 ## Segurança e escopo
