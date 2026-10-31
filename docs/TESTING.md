@@ -1,33 +1,38 @@
-# Testing checklist
+# Checklist de validação
 
-## Functional checks
+Este documento separa validações estáticas no repositório de verificações funcionais que precisam de um ambiente de execução. Compilar o Luau não comprova o comportamento visual ou o ganho de desempenho.
 
-- [ ] Run the standalone file in a private test experience where client-side scripts are permitted.
-- [ ] Confirm the panel appears and all controls respond to touch.
-- [ ] Apply Ultra; confirm particles, trails, beams, post effects, legacy effects, and shadows are reduced.
-- [ ] Apply Balanced; confirm disabled properties return to their captured original values except post effects.
-- [ ] Enable texture hiding; confirm Decal and Texture transparency changes locally.
-- [ ] Disable texture hiding; confirm the original transparency values return.
-- [ ] Use Restore; verify all changed properties return to their original values.
-- [ ] Close with ×; verify restoration and panel removal.
-- [ ] Add new effects while a profile is active; confirm they are handled.
-- [ ] Change CurrentCamera and add camera post effects; confirm they are handled.
-- [ ] Re-run the script after closing; verify there is no duplicate panel or stale connection.
+## Validação no repositório
 
-## Performance checks
+- [ ] Compilar todos os arquivos .lua em src/ e dist/.
+- [ ] Confirmar que o arquivo standalone contém Ultra, Equilibrado, Leve, monitor, controle de colisão e restauração.
+- [ ] Revisar que a detecção incremental não inicia varreduras recorrentes.
+- [ ] Verificar que visual e colisão usam snapshots separados.
+- [ ] Verificar que o chão é excluído da ocultação ambiental e das alterações de colisão.
+- [ ] Confirmar que o fluxo de publicação copia a versão standalone e os documentos correspondentes.
+- [ ] Revisar o diff para excluir alterações não relacionadas.
 
-- [ ] Measure the same scene and camera angle before and after each profile.
-- [ ] Repeat each measurement several times; record median FPS or frame time rather than relying on one sample.
-- [ ] Compare low, medium, and high graphics quality where available.
-- [ ] Test on a real low-end Android device and on the intended iOS/Delta setup separately.
-- [ ] Check memory usage separately from FPS. Hiding a texture does not guarantee that its asset memory is unloaded.
-- [ ] Use Roblox MicroProfiler/Performance Stats when available to identify whether rendering is actually the bottleneck.
+## Verificações funcionais futuras
 
-## Safety/regression checks
+Em uma experiência de teste na qual scripts locais sejam permitidos:
 
-- [ ] Confirm collision, player movement, UI, objectives, and gameplay remain unchanged.
-- [ ] Confirm no objects are destroyed and no RemoteEvents or server state are modified.
-- [ ] Check that optional texture hiding does not remove important signs or clues.
-- [ ] Confirm Restore works after switching profiles multiple times.
+- [ ] Confirmar que os três botões aplicam comportamentos visuais distintos.
+- [ ] Confirmar que personagens, NPCs identificáveis e objetos de gameplay protegidos continuam visíveis.
+- [ ] Confirmar que o chão permanece visível em todos os modos.
+- [ ] Confirmar que o chão mantém a colisão original.
+- [ ] Confirmar que o controle de colisão só afeta peças ambientais elegíveis.
+- [ ] Adicionar peças/efeitos durante cada modo e confirmar a detecção automática.
+- [ ] Alternar repetidamente entre os modos e verificar a restauração dos valores originais.
+- [ ] Desativar colisão e verificar a recuperação de CanCollide.
+- [ ] Fechar o painel e confirmar restauração e desconexão dos eventos.
+- [ ] Executar novamente o script após fechar e verificar ausência de painel/conexões duplicados.
 
-FPS samples are approximate. Record device model, OS, Roblox build, executor build, experience, graphics level, and test scene with every result. Do not claim a guaranteed performance improvement from a single run.
+## Avaliação de desempenho
+
+- [ ] Comparar a mesma cena, ângulo de câmera e qualidade gráfica antes/depois de cada modo.
+- [ ] Repetir medições e comparar mediana de FPS ou tempo de quadro.
+- [ ] Separar FPS, memória, rede e desempenho do servidor; são métricas diferentes.
+- [ ] Registrar modelo do aparelho, sistema operacional, versão do cliente, versão do executor, experiência e cena.
+- [ ] Não afirmar aumento garantido de FPS ou redução de RAM com base em uma única observação.
+
+A tela FPS do UltraBoost é uma estimativa leve, não substitui profiler e não demonstra causalidade entre o modo e uma eventual variação de desempenho.
