@@ -1,5 +1,5 @@
 --[[
-	ULTRABOOST v0.3.0
+	ULTRABOOST v0.4.0
 	Client-side visual tuning with reversible Ultra, Balanced and Light modes.
 
 	Uses standard client-side Roblox/Luau APIs only. No HTTP loader, executor-only
@@ -9,6 +9,7 @@
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
 
@@ -39,15 +40,16 @@ local activeMode = nil
 local collisionEnabled = false
 local monitorEnabled = true
 local watchersActive = false
+local operationBusy = false
 
 -- Separate snapshots keep visual mode switching independent from collision.
-local visualSaved = setmetatable({}, { __mode = "k" })
-local collisionSaved = setmetatable({}, { __mode = "k" })
+-- Strong keys keep temporarily reparented instances available for reliable restore.
+local visualSaved = {}
+local collisionSaved = {}
 local terrainColorsSaved = {}
 local watcherConnections = {}
 local scanSerial = {}
-local cameraConnection = nil
-local cameraChangedConnection = nil
+local scanCounter = 0
 local monitorConnection = nil
 
 local function rememberAndSet(store, instance, property, value)
@@ -57,6 +59,7 @@ local function rememberAndSet(store, instance, property, value)
 		store[instance] = values
 	end
 
+	-- A wrapper preserves even nil originals as a recorded value.
 	if values[property] == nil then
 		local ok, original = pcall(function()
 			return instance[property]
@@ -64,24 +67,34 @@ local function rememberAndSet(store, instance, property, value)
 		if not ok then
 			return false
 		end
-		values[property] = original
+		values[property] = { value = original }
 	end
 
-	local ok = pcall(function()
+	return pcall(function()
 		instance[property] = value
 	end)
-	return ok
 end
 
 local function restoreStore(store)
+	local entries = {}
 	for instance, values in pairs(store) do
-		for property, original in pairs(values) do
-			pcall(function()
-				instance[property] = original
-			end)
-		end
+		table.insert(entries, { instance = instance, values = values })
 	end
 	table.clear(store)
+
+	-- Restore in small batches to avoid a large one-frame spike.
+	local processed = 0
+	for _, entry in ipairs(entries) do
+		for property, saved in pairs(entry.values) do
+			pcall(function()
+				entry.instance[property] = saved.value
+			end)
+		end
+		processed += 1
+		if processed % 80 == 0 then
+			task.wait()
+		end
+	end
 end
 
 local function restoreTerrainColors()
@@ -145,16 +158,28 @@ local function containsAny(text, fragments)
 	return false
 end
 
+local function isProtectedSelf(instance)
+	local className = instance.ClassName
+	if className == "Model" and instance:FindFirstChildOfClass("Humanoid") then
+		return true
+	end
+	if className == "Tool" or className == "Accessory" then
+		return true
+	end
+
+	-- Only inspect names on objects that can contain or represent gameplay objects.
+	if className == "Model" or className == "Folder"
+		or className == "Tool" or className == "Accessory"
+		or instance:IsA("BasePart") then
+		return containsAny(instance.Name, protectedNameParts)
+	end
+	return false
+end
+
 local function isProtectedObject(instance)
 	local current = instance
 	while current and current ~= Workspace and current ~= Lighting do
-		if current:IsA("Model") and current:FindFirstChildOfClass("Humanoid") then
-			return true
-		end
-		if current:IsA("Tool") or current:IsA("Accessory") then
-			return true
-		end
-		if containsAny(current.Name, protectedNameParts) then
+		if isProtectedSelf(current) then
 			return true
 		end
 		current = current.Parent
@@ -181,28 +206,7 @@ local function isGroundPart(part)
 		and part.CFrame.UpVector.Y >= 0.85
 end
 
-local function isEnvironmentPart(part)
-	if not part:IsA("BasePart") or not part:IsDescendantOf(Workspace) or not part.Anchored then
-		return false
-	end
-	if isProtectedObject(part) or isGroundPart(part) then
-		return false
-	end
-	return true
-end
-
-local function shouldSimplifyTexture(instance)
-	if isProtectedObject(instance) then
-		return false
-	end
-
-	local parentPart = instance:FindFirstAncestorWhichIsA("BasePart")
-	if parentPart then
-		return isGroundPart(parentPart) or isEnvironmentPart(parentPart)
-	end
-
-	return instance:IsDescendantOf(Lighting)
-end
+-- Environment classification is performed once per relevant instance in applyInstance.
 
 local function hideTexture(instance)
 	if instance:IsA("Decal") or instance:IsA("Texture") then
@@ -215,59 +219,88 @@ local function hideTexture(instance)
 	end
 end
 
-local function applyEffects(instance, mode)
-	if mode == "Light" or isProtectedObject(instance) then
-		return
-	end
-
-	if instance:IsA("ParticleEmitter")
-		or instance:IsA("Trail")
-		or instance:IsA("Beam")
-		or instance:IsA("PostEffect")
-		or instance:IsA("Fire")
-		or instance:IsA("Smoke")
-		or instance:IsA("Sparkles") then
-		rememberAndSet(visualSaved, instance, "Enabled", false)
-	end
+local function isEffectObject(instance)
+	local className = instance.ClassName
+	return className == "ParticleEmitter"
+		or className == "Trail"
+		or className == "Beam"
+		or className == "BloomEffect"
+		or className == "BlurEffect"
+		or className == "ColorCorrectionEffect"
+		or className == "DepthOfFieldEffect"
+		or className == "SunRaysEffect"
+		or className == "Fire"
+		or className == "Smoke"
+		or className == "Sparkles"
 end
 
-local function applyInstance(instance)
+local function applyInstance(instance, knownProtected)
 	if destroyed then
 		return
 	end
 
+	local className = instance.ClassName
+	local isPart = instance:IsA("BasePart")
+	local isTextureObject = className == "Decal"
+		or className == "Texture"
+		or className == "SurfaceAppearance"
+	local isEffect = isEffectObject(instance)
+
+	if not isPart and not isTextureObject and not isEffect then
+		return
+	end
+
 	local mode = activeMode
-	if mode and not isProtectedObject(instance) then
-		if instance:IsA("BasePart") then
-			local ground = isGroundPart(instance)
-			local environment = isEnvironmentPart(instance)
+	if not mode and not (collisionEnabled and isPart) then
+		return
+	end
 
-			if ground or environment then
-				rememberAndSet(visualSaved, instance, "Material", SMOOTH)
-				rememberAndSet(visualSaved, instance, "MaterialVariant", "")
+	local protected = knownProtected
+	if protected == nil then
+		protected = isProtectedObject(instance)
+	end
 
-				if mode == "Ultra" then
-					if environment then
-						rememberAndSet(visualSaved, instance, "LocalTransparencyModifier", 1)
-						rememberAndSet(visualSaved, instance, "CastShadow", false)
-					end
-				elseif mode == "Balanced" then
-					rememberAndSet(visualSaved, instance, "Color", WHITE)
-					rememberAndSet(visualSaved, instance, "CastShadow", false)
-				end
-			end
-		elseif (instance:IsA("Decal") or instance:IsA("Texture") or instance:IsA("SurfaceAppearance"))
-			and shouldSimplifyTexture(instance) then
-			hideTexture(instance)
-		else
-			applyEffects(instance, mode)
+	local ground = false
+	local environment = false
+	local textureEligible = false
+
+	if not protected and isPart and instance:IsDescendantOf(Workspace) then
+		ground = isGroundPart(instance)
+		environment = instance.Anchored and not ground
+	elseif not protected and isTextureObject then
+		local parentPart = instance:FindFirstAncestorWhichIsA("BasePart")
+		if parentPart and parentPart:IsDescendantOf(Workspace) then
+			ground = isGroundPart(parentPart)
+			environment = parentPart.Anchored and not ground
+			textureEligible = ground or environment
+		elseif instance:IsDescendantOf(Lighting) then
+			textureEligible = true
 		end
 	end
 
-	-- Only confidently classified, anchored environment parts are eligible.
-	-- Ground, characters, tools and gameplay-named objects are always excluded.
-	if collisionEnabled and instance:IsA("BasePart")
-		and instance.Anchored and isEnvironmentPart(instance) then
+	if mode and not protected then
+		if isPart and (ground or environment) then
+			rememberAndSet(visualSaved, instance, "Material", SMOOTH)
+			rememberAndSet(visualSaved, instance, "MaterialVariant", "")
+
+			if mode == "Ultra" then
+				if environment then
+					rememberAndSet(visualSaved, instance, "LocalTransparencyModifier", 1)
+					rememberAndSet(visualSaved, instance, "CastShadow", false)
+				end
+			elseif mode == "Balanced" then
+				rememberAndSet(visualSaved, instance, "Color", WHITE)
+				rememberAndSet(visualSaved, instance, "CastShadow", false)
+			end
+		elseif isTextureObject and textureEligible then
+			hideTexture(instance)
+		elseif isEffect and mode ~= "Light" then
+			rememberAndSet(visualSaved, instance, "Enabled", false)
+		end
+	end
+
+	-- Ground, characters, tools and gameplay-named objects are never eligible.
+	if collisionEnabled and isPart and environment then
 		rememberAndSet(collisionSaved, instance, "CanCollide", false)
 	end
 end
@@ -277,17 +310,25 @@ local function scanRoot(root)
 		return
 	end
 
-	local serial = (scanSerial[root] or 0) + 1
+	scanCounter += 1
+	local serial = scanCounter
 	scanSerial[root] = serial
 
 	task.spawn(function()
-		local ok, stack = pcall(function()
+		local ok, initialChildren = pcall(function()
 			return root:GetChildren()
 		end)
 		if not ok then
 			return
 		end
 
+		-- Skip protected subtrees instead of inspecting every descendant of characters/NPCs.
+		local stack = {}
+		for _, child in ipairs(initialChildren) do
+			table.insert(stack, child)
+		end
+
+		local sliceStarted = os.clock()
 		local processed = 0
 		while #stack > 0 do
 			if destroyed or scanSerial[root] ~= serial then
@@ -298,20 +339,25 @@ local function scanRoot(root)
 			end
 
 			local instance = table.remove(stack)
-			applyInstance(instance)
-			processed += 1
+			local protected = isProtectedSelf(instance)
+			applyInstance(instance, protected)
 
-			local childOk, children = pcall(function()
-				return instance:GetChildren()
-			end)
-			if childOk then
-				for _, child in ipairs(children) do
-					table.insert(stack, child)
+			if not protected then
+				local childOk, children = pcall(function()
+					return instance:GetChildren()
+				end)
+				if childOk then
+					for _, child in ipairs(children) do
+						table.insert(stack, child)
+					end
 				end
 			end
 
-			if processed % 100 == 0 then
+			processed += 1
+			-- Bound each scan slice to reduce frame-time spikes on large maps.
+			if os.clock() - sliceStarted >= 0.0015 or processed % 60 == 0 then
 				task.wait()
+				sliceStarted = os.clock()
 			end
 		end
 	end)
@@ -325,29 +371,8 @@ local function disconnectWatchers()
 	end
 	table.clear(watcherConnections)
 
-	if cameraConnection then
-		cameraConnection:Disconnect()
-		cameraConnection = nil
-	end
-	if cameraChangedConnection then
-		cameraChangedConnection:Disconnect()
-		cameraChangedConnection = nil
-	end
-
 	watchersActive = false
 	table.clear(scanSerial)
-end
-
-local function watchCamera()
-	if cameraConnection then
-		cameraConnection:Disconnect()
-		cameraConnection = nil
-	end
-
-	local camera = Workspace.CurrentCamera
-	if camera and not camera:IsDescendantOf(Workspace) then
-		cameraConnection = camera.DescendantAdded:Connect(applyInstance)
-	end
 end
 
 local function ensureWatchers()
@@ -356,16 +381,9 @@ local function ensureWatchers()
 	end
 
 	watchersActive = true
+	-- CurrentCamera is already under Workspace, so scanning it separately duplicates work.
 	table.insert(watcherConnections, Workspace.DescendantAdded:Connect(applyInstance))
 	table.insert(watcherConnections, Lighting.DescendantAdded:Connect(applyInstance))
-
-	cameraChangedConnection = Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-		watchCamera()
-		if activeMode or collisionEnabled then
-			scanRoot(Workspace.CurrentCamera)
-		end
-	end)
-	watchCamera()
 end
 
 local function updateWatchers()
@@ -388,9 +406,14 @@ local function applyTerrain(mode)
 end
 
 local function applyMode(mode)
-	if mode ~= "Ultra" and mode ~= "Balanced" and mode ~= "Light" then
+	if operationBusy or (mode ~= "Ultra" and mode ~= "Balanced" and mode ~= "Light") then
 		return false
 	end
+	operationBusy = true
+
+	-- Pause visual edits and invalidate any scan using the previous mode.
+	activeMode = nil
+	table.clear(scanSerial)
 
 	-- Restore only visual properties; independent collision settings stay active.
 	restoreStore(visualSaved)
@@ -405,11 +428,16 @@ local function applyMode(mode)
 	updateWatchers()
 	scanRoot(Workspace)
 	scanRoot(Lighting)
-	scanRoot(Workspace.CurrentCamera)
+
+	operationBusy = false
 	return true
 end
 
 local function setCollisionEnabled(enabled)
+	if operationBusy then
+		return false
+	end
+	operationBusy = true
 	collisionEnabled = enabled
 	if not enabled then
 		restoreStore(collisionSaved)
@@ -418,15 +446,23 @@ local function setCollisionEnabled(enabled)
 		scanRoot(Workspace)
 	end
 	updateWatchers()
+	operationBusy = false
+	return true
 end
 
 local function restoreAll()
+	if operationBusy then
+		return false
+	end
+	operationBusy = true
 	activeMode = nil
 	collisionEnabled = false
 	disconnectWatchers()
 	restoreStore(visualSaved)
 	restoreStore(collisionSaved)
 	restoreTerrainColors()
+	operationBusy = false
+	return true
 end
 
 -- Touch-friendly panel.
@@ -474,6 +510,7 @@ end
 
 local title = makeLabel("Title", "ULTRABOOST  •  CLIENT", UDim2.fromOffset(10, 7), UDim2.fromOffset(174, 22), 13)
 title.TextColor3 = Color3.fromRGB(112, 190, 255)
+title.Active = true
 
 local function makeSmallButton(name, text, x, color)
 	local button = Instance.new("TextButton")
@@ -521,28 +558,38 @@ end
 makeButton("Ultra", "⚡  ULTRA • ambiente mínimo", 75, 30, Color3.fromRGB(37, 103, 166), function()
 	if applyMode("Ultra") then
 		statusLabel.Text = "Ultra aplicado • cenário simplificado"
+	else
+		statusLabel.Text = "Aguarde a operação atual terminar"
 	end
 end)
 
 makeButton("Balanced", "⚖  EQUILIBRADO • mapa branco", 109, 30, Color3.fromRGB(75, 91, 115), function()
 	if applyMode("Balanced") then
 		statusLabel.Text = "Equilibrado aplicado • mapa branco"
+	else
+		statusLabel.Text = "Aguarde a operação atual terminar"
 	end
 end)
 
 makeButton("Light", "🪶  LEVE • plástico + sem texturas", 143, 30, Color3.fromRGB(53, 112, 91), function()
 	if applyMode("Light") then
 		statusLabel.Text = "Leve aplicado • cores preservadas"
+	else
+		statusLabel.Text = "Aguarde a operação atual terminar"
 	end
 end)
 
 local collisionButton
 collisionButton = makeButton("Collision", "COLISÃO AMBIENTAL: OFF", 179, 28, Color3.fromRGB(91, 78, 111), function()
-	setCollisionEnabled(not collisionEnabled)
-	collisionButton.Text = collisionEnabled and "COLISÃO AMBIENTAL: ON" or "COLISÃO AMBIENTAL: OFF"
-	statusLabel.Text = collisionEnabled
-		and "Colisão local desativada em peças ambientais elegíveis"
-		or "Colisão original restaurada"
+	local nextState = not collisionEnabled
+	if setCollisionEnabled(nextState) then
+		collisionButton.Text = collisionEnabled and "COLISÃO AMBIENTAL: ON" or "COLISÃO AMBIENTAL: OFF"
+		statusLabel.Text = collisionEnabled
+			and "Colisão local desativada em peças ambientais elegíveis"
+			or "Colisão original restaurada"
+	else
+		statusLabel.Text = "Aguarde a operação atual terminar"
+	end
 end)
 
 local monitorButton
@@ -561,9 +608,12 @@ monitorButton = makeButton("Monitor", "MONITOR FPS: ON", 211, 28, Color3.fromRGB
 end)
 
 makeButton("Restore", "↩  RESTAURAR ORIGINAL", 243, 29, Color3.fromRGB(105, 68, 62), function()
-	restoreAll()
-	collisionButton.Text = "COLISÃO AMBIENTAL: OFF"
-	statusLabel.Text = "Configurações originais restauradas"
+	if restoreAll() then
+		collisionButton.Text = "COLISÃO AMBIENTAL: OFF"
+		statusLabel.Text = "Configurações originais restauradas"
+	else
+		statusLabel.Text = "Aguarde a operação atual terminar"
+	end
 end)
 
 local footnote = makeLabel(
@@ -589,7 +639,15 @@ miniButton.BorderSizePixel = 0
 miniButton.Parent = screen
 Instance.new("UICorner", miniButton).CornerRadius = UDim.new(0, 10)
 
+local consumeMiniDrag = function()
+	return false
+end
+
+miniButton.Active = true
 miniButton.Activated:Connect(function()
+	if consumeMiniDrag() then
+		return
+	end
 	panel.Visible = true
 	miniButton.Visible = false
 end)
@@ -599,11 +657,23 @@ minimizeButton.Activated:Connect(function()
 	miniButton.Visible = true
 end)
 
+local dragConnections = {}
+
 local function closeUltraBoost()
 	if destroyed then
 		return
 	end
+	if operationBusy then
+		statusLabel.Text = "Aguarde a operação atual terminar"
+		return
+	end
 	destroyed = true
+	for _, connection in ipairs(dragConnections) do
+		pcall(function()
+			connection:Disconnect()
+		end)
+	end
+	table.clear(dragConnections)
 	restoreAll()
 	if monitorConnection then
 		monitorConnection:Disconnect()
@@ -615,6 +685,70 @@ end
 closeButton.Activated:Connect(closeUltraBoost)
 screen.Parent = playerGui
 
+-- Drag with mouse or finger. The title moves the full panel; the minimized
+-- floating button can be repositioned independently and remains tappable.
+local function makeDraggable(target, handle)
+	handle.Active = true
+	local dragging = false
+	local dragInput = nil
+	local dragStart = nil
+	local startPosition = nil
+	local moved = false
+	local movedAt = 0
+
+	table.insert(dragConnections, handle.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragInput = input
+			dragStart = input.Position
+			startPosition = target.Position
+			moved = false
+		end
+	end))
+
+	table.insert(dragConnections, UserInputService.InputChanged:Connect(function(input)
+		if not dragging then
+			return
+		end
+		if input.UserInputType ~= Enum.UserInputType.MouseMovement and input ~= dragInput then
+			return
+		end
+
+		local delta = input.Position - dragStart
+		if delta.Magnitude > 6 then
+			moved = true
+			movedAt = os.clock()
+		end
+
+		local x = startPosition.X.Offset + delta.X
+		local y = startPosition.Y.Offset + delta.Y
+		local camera = Workspace.CurrentCamera
+		if camera then
+			local viewport = camera.ViewportSize
+			x = math.clamp(x, 0, math.max(0, viewport.X - target.AbsoluteSize.X))
+			y = math.clamp(y, 0, math.max(0, viewport.Y - target.AbsoluteSize.Y))
+		end
+		target.Position = UDim2.fromOffset(x, y)
+	end))
+
+	table.insert(dragConnections, UserInputService.InputEnded:Connect(function(input)
+		if input == dragInput or input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = false
+			dragInput = nil
+		end
+	end))
+
+	return function()
+		local didMove = moved and (os.clock() - movedAt < 0.5)
+		moved = false
+		return didMove
+	end
+end
+
+consumeMiniDrag = makeDraggable(miniButton, miniButton)
+makeDraggable(panel, title)
+
 local frames = 0
 local elapsed = 0
 
@@ -623,7 +757,7 @@ local function startMonitor()
 		return
 	end
 
-	monitorConnection = RunService.RenderStepped:Connect(function(deltaTime)
+	monitorConnection = RunService.Heartbeat:Connect(function(deltaTime)
 		if destroyed or not monitorEnabled then
 			return
 		end
@@ -650,4 +784,4 @@ monitorButton.Activated:Connect(function()
 end)
 
 startMonitor()
-print("[UltraBoost] v0.3.0 loaded. Choose Ultra, Equilibrado or Leve.")
+print("[UltraBoost] v0.4.0 loaded. Choose Ultra, Equilibrado or Leve.")
