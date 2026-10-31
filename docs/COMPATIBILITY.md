@@ -1,30 +1,43 @@
-# Compatibility notes
+# Notas de compatibilidade
 
-## Design target
+## Alvo de implementação
 
-The standalone script is built around standard client-side Roblox/Luau APIs: `Players.LocalPlayer`, `PlayerGui`, `Instance.new`, `Workspace`, `Lighting`, `DescendantAdded`, `RenderStepped`, and ordinary instance properties.
+O arquivo standalone utiliza APIs padrão do cliente, incluindo Players.LocalPlayer, PlayerGui, Instance.new, Workspace, Lighting, DescendantAdded, RenderStepped e propriedades de instâncias acessíveis pelo cliente.
 
-It deliberately does not depend on executor-specific APIs, HTTP fetching, remote script loaders, filesystem functions, hidden UI containers, debug hooks, or anti-cheat bypasses.
+Ele evita funções específicas de executor, APIs ocultas, chamadas remotas, remoção de instâncias e bypass de anticheat. O carregador opcional, por outro lado, requer que o ambiente ofereça loadstring e game:HttpGet.
 
-## Status
+## Estado conhecido
 
-| Environment | Status |
+| Ambiente | Estado |
 |---|---|
-| Roblox Studio, in an experience you control | Reference environment; test the modular source in Studio |
-| Delta on Android | Not yet device-verified |
-| Delta on iOS | Not yet device-verified |
-| Other executors | Not guaranteed |
+| Roblox Studio, em experiência própria | Ambiente de referência para a implementação modular; requer validação prática |
+| Delta no Android | Compatibilidade não verificada em build/aparelho específico |
+| Delta no iOS | Compatibilidade não verificada em build/aparelho específico |
+| Outros executores | Não garantido |
 
-A script that uses standard APIs can still fail in a particular executor because injection context, permissions, client updates, or platform behavior may differ. The name “Delta” alone does not identify a fixed runtime version.
+Usar APIs padrão não assegura que qualquer executor ofereça o contexto, as permissões ou o comportamento necessários. O nome do executor, sem a versão exata, também não identifica um runtime imutável.
 
-## Known limitations
+## Modos e classificação
 
-- The script runs only on the local client. It cannot improve server frame time, replication, ping, or other players' clients.
-- A local property change may reduce rendering work, but does not guarantee that the underlying assets are unloaded or that RAM usage drops.
-- Some experiences rely on particles, lights, post effects, decals, or textures to communicate gameplay information.
-- The FPS display counts client render frames. It is a rough observation, not a performance profiler.
-- Roblox updates and executor updates can change runtime behavior. Re-test after either changes.
+- **Ultra** usa LocalTransparencyModifier em peças ambientais classificadas e conserva as peças reconhecidas como chão.
+- **Equilibrado** modifica localmente cor e material de peças ambientais e tenta uniformizar as cores do Terrain.
+- **Leve** simplifica materiais e tenta limpar mapas de SurfaceAppearance, além de ocultar Decal e Texture compatíveis.
+- A classificação usa nomes, hierarquia, modelos com Humanoid e dimensões de superfícies horizontais. É heurística, não uma compreensão semântica do mapa.
+- NPCs/modelos com Humanoid, personagens, ferramentas e nomes reconhecidos como objetos de gameplay são protegidos quando identificados.
+- A detecção de novos objetos usa eventos de adição e processamento incremental.
 
-## Release gate
+## Colisão local
 
-Do not mark Delta compatibility as “verified” until the exact Delta build and device have passed the functional and performance checks in [TESTING.md](TESTING.md), including restoration after profile switching and closing.
+O controle é separado dos modos visuais e vem desligado por padrão. Somente peças ambientais ancoradas que passem pelos critérios de classificação podem ter CanCollide alterado localmente. Chão, personagens, ferramentas e objetos protegidos são excluídos.
+
+Uma alteração local de CanCollide não garante atravessar paredes ou obstáculos: a autoridade do servidor, a propriedade de rede e a lógica da experiência podem corrigir ou ignorar a alteração.
+
+## Limitações
+
+- O script atua somente no cliente local. Não melhora tempo de quadro do servidor, replicação, ping ou o dispositivo de outros jogadores.
+- Alterações locais podem reduzir trabalho de renderização, mas não garantem descarregamento de assets nem redução de RAM.
+- Algumas experiências usam partículas, luzes, pós-efeitos, decals e texturas para comunicar informações de gameplay.
+- O número de FPS é uma estimativa derivada de quadros renderizados, não um profiler.
+- APIs e comportamento podem mudar com atualizações do cliente ou do executor.
+
+Não marque compatibilidade com Delta como verificada até que uma build específica, num aparelho identificado, passe pela validação funcional apropriada.
